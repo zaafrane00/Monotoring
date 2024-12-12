@@ -1,0 +1,115 @@
+version: '3.8'
+
+services:
+  mongo:
+    image: mongo:5
+    container_name: mongo
+    labels:
+       app: mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    restart: unless-stopped
+
+
+  express-app:
+    build:
+      context: ./express-app
+    container_name: express-app
+    labels:
+      app: express-app
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mongo
+    volumes:
+      - /var/log:/var/log
+
+  loki:
+    image: grafana/loki:2.9.1
+    container_name: loki
+    labels:
+       app: loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki-config.yml:/etc/loki/local-config.yaml:ro
+      - ./loki_data/index:/loki/index
+      - ./loki_data/cache:/loki/cache
+      - ./loki_data/chunks:/loki/chunks
+      - ./loki_data/wal:/wal
+      - ./loki_data/compactor:/loki/compactor
+    command: -config.file=/etc/loki/local-config.yaml
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    labels:
+       app: grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    restart: unless-stopped
+    depends_on:
+      - loki
+
+  promtail:
+    image: grafana/promtail:2.9.1
+    container_name: promtail
+    labels:
+       app: promtail
+    volumes:
+      - /var/log:/var/log
+      - ./promtail-config.yml:/etc/promtail/config.yml
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: -config.file=/etc/promtail/config.yml
+    restart: unless-stopped
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    restart: unless-stopped
+    labels:
+      app: node-exporter
+    ports:
+      - '9100:9100'
+
+  mongo-exporter:
+    image: bitnami/mongodb-exporter:latest
+    container_name: mongo-exporter
+    environment:
+      MONGODB_URI: mongodb://mongo:27017
+    ports:
+      - "9216:9216"
+    restart: unless-stopped
+    command: ["--discovering-mode", "--log.level=debug"]
+    labels:
+      app: mongo-exporter
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    labels:
+      app: prometheus
+    ports:
+      - '9090:9090'
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    depends_on:
+      - node-exporter
+
+
+
+volumes:
+  loki-data:
+  mongo-data:
+  grafana-data:
