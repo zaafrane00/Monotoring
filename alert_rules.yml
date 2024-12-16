@@ -1,0 +1,41 @@
+groups:
+- name: system-health
+  rules:
+  # Alert for high CPU usage
+  - alert: HighCPUUsage
+    expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "High CPU Usage Detected"
+      description: "CPU usage on instance {{ $labels.instance }} has been over 90% for the last 5 minutes."
+
+  # Alert if an instance goes down
+  - alert: InstanceDown
+    expr: up == 0
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Instance Down Alert"
+      description: "The instance {{ $labels.instance }} has been down for more than 1 minute."
+
+  # Alert for high memory usage
+  - alert: HighMemoryUsage
+    expr: (node_memory_Active_bytes / node_memory_MemTotal_bytes) * 100 > 90
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High Memory Usage Detected"
+      description: "Memory usage on instance {{ $labels.instance }} has been over 90% for the last 5 minutes."
+  # Test alert to verify notifications
+  # - alert: TestAlert
+  #   expr: vector(1)
+  #   for: 1m
+  #   labels:
+  #     severity: critical
+  #   annotations:
+  #     summary: "Test Alert for Connectivity"
+  #     description: "This is a test alert to verify that Alertmanager notifications are working correctly."

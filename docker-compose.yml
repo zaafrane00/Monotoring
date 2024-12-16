@@ -94,6 +94,8 @@ services:
     labels:
       app: mongo-exporter
 
+
+
   prometheus:
     image: prom/prometheus:latest
     container_name: prometheus
@@ -104,8 +106,42 @@ services:
       - '9090:9090'
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./alert_rules.yml:/etc/prometheus/alert_rules.yml
     depends_on:
       - node-exporter
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1.5G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: alertmanager
+    restart: unless-stopped
+    ports:
+      - '9093:9093'
+    volumes:
+      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    depends_on:
+      - node-exporter
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:9093 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
 
 

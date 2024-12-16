@@ -1,32 +1,42 @@
 server:
   http_listen_port: 9080
+  grpc_listen_port: 0
 
 positions:
   filename: /tmp/positions.yaml
 
 clients:
 - url: http://loki:3100/loki/api/v1/push
+  batchsize: 102400 # Increase if needed
+  batchwait: 5s # Increase to reduce request frequency
 
 scrape_configs:
-- job_name: docker-logs
-  docker_sd_configs:
-  - host: unix:///var/run/docker.sock
-  relabel_configs:
-  - source_labels: [ __meta_docker_container_name ]
-    regex: '(/|^)(express-app.*|mongo.*)$'
-    action: replace
-    target_label: container_name
-    replacement: '$2'
-  - source_labels: [ container_name ]
-    target_label: job
-    action: replace
-  - source_labels: [ __meta_docker_container_log_path ]
-    target_label: __path__
-  pipeline_stages:
-  - drop:
-      expression: '^$' # Drop empty log lines
-  - labels:
-      container: '{{ .container_name }}'
+- job_name: system
+  static_configs:
+  - targets:
+    - localhost
+    labels:
+      job: varlogs
+      __path__: /var/log/*log
+
+- job_name: docker
+  static_configs:
+  - targets:
+    - localhost
+    labels:
+      job: docker_logs
+      __path__: /var/lib/docker/containers/*/*-json.log
+
+# old
+# server:
+#   http_listen_port: 9080
+
+# positions:
+#   filename: /tmp/positions.yaml
+
+# clients:
+# - url: http://loki:3100/loki/api/v1/push
+
 
 # scrape_configs:
 # - job_name: docker-logs
@@ -34,35 +44,17 @@ scrape_configs:
 #   - host: unix:///var/run/docker.sock
 #   relabel_configs:
 #   - source_labels: [ __meta_docker_container_name ]
-#     regex: '(/|^)(express-app.*|mongo.*|loki.*)$'
-#     action: keep
-#   - source_labels: [ __meta_docker_container_name ]
-#     target_label: container
-#     regex: '(/?)(.*)'
-#     replacement: '$2'
+#     regex: '(/|^)(express-app.*|mongo.*)$'
 #     action: replace
-#   - source_labels: [ container ]
+#     target_label: container_name
+#     replacement: '$2'
+#   - source_labels: [ container_name ]
 #     target_label: job
 #     action: replace
 #   - source_labels: [ __meta_docker_container_log_path ]
 #     target_label: __path__
-#   - source_labels: [ __meta_docker_container_name ]
-#     action: replace
-#     target_label: app
-#     replacement: 'express-app' # Static label for express-app logs
-#     regex: '(/|^)(express-app.*)$'
-#   - source_labels: [ __meta_docker_container_name ]
-#     action: replace
-#     target_label: app
-#     replacement: 'mongo' # Static label for mongo logs
-#     regex: '(/|^)(mongo.*)$'
-#   - source_labels: [ __meta_docker_container_name ]
-#     action: replace
-#     target_label: app
-#     replacement: 'unknown' # Fallback label if no other matches
-#     regex: '.*' # Matches anything
 #   pipeline_stages:
 #   - drop:
 #       expression: '^$' # Drop empty log lines
 #   - labels:
-#       app: unknown # Default label for all logs if no other labels are assigne
+#       container: '{{ .container_name }}'
